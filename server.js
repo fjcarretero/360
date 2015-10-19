@@ -1,159 +1,256 @@
-#!/bin/env node
-//  OpenShift sample Node application
-var express = require('express');
-var fs      = require('fs');
-
 
 /**
- *  Define the sample application.
+ * Module dependencies.
  */
-var SampleApp = function() {
 
-    //  Scope.
-    var self = this;
+var express = require('express'),
+  routes = require('./routes'),
+  api = require('./routes/api'),
+  mongoose = require('mongoose'),
+  models = require('./models'),
+  passport = require('passport'),
+  GoogleStrategy = require('passport-google-oauth').OAuth2Strategy,
+  logger = require('./winston');
 
-
-    /*  ================================================================  */
-    /*  Helper functions.                                                 */
-    /*  ================================================================  */
-
-    /**
-     *  Set up server IP address and port # using env variables/defaults.
-     */
-    self.setupVariables = function() {
-        //  Set the environment variables we need.
-        self.ipaddress = process.env.OPENSHIFT_NODEJS_IP;
-        self.port      = process.env.OPENSHIFT_NODEJS_PORT || 8080;
-
-        if (typeof self.ipaddress === "undefined") {
-            //  Log errors on OpenShift but continue w/ 127.0.0.1 - this
-            //  allows us to run/test the app locally.
-            console.warn('No OPENSHIFT_NODEJS_IP var, using 127.0.0.1');
-            self.ipaddress = "127.0.0.1";
-        };
-    };
+var app = module.exports = express();
 
 
-    /**
-     *  Populate the cache.
-     */
-    self.populateCache = function() {
-        if (typeof self.zcache === "undefined") {
-            self.zcache = { 'index.html': '' };
-        }
+// Configuration
 
-        //  Local cache for static content.
-        self.zcache['index.html'] = fs.readFileSync('./index.html');
-    };
+function clientErrorHandler(err, req, res, next) {
+  if (req.xhr) {
+    res.send(500, { error: 'Something blew up!' });
+  } else {
+    next(err);
+  }
+}
 
+function errorHandler(err, req, res, next) {
+  res.status(500);
+  logger.error(err);
+  res.render('error', { error: err });
+}
 
-    /**
-     *  Retrieve entry (content) from cache.
-     *  @param {string} key  Key identifying content to retrieve from cache.
-     */
-    self.cache_get = function(key) { return self.zcache[key]; };
+app.configure(function(){
+  app.set('views', __dirname + '/views');
+  app.set('view engine', 'jade');
+  app.use(express.cookieParser());
+  app.use(express.bodyParser());
+  app.use(express.methodOverride());
+  app.use(express.static(__dirname + '/public'));
+  app.use(express.session({ secret: 'keyboard cat' }));
+  app.use(passport.initialize());
+  app.use(passport.session());
+  app.use(clientErrorHandler);
+  app.use(errorHandler);
+  app.use(app.router);
+});
 
+var mongo,
+	googleConfig;
 
-    /**
-     *  terminator === the termination handler
-     *  Terminate server on receipt of the specified signal.
-     *  @param {string} sig  Signal to terminate on.
-     */
-    self.terminator = function(sig){
-        if (typeof sig === "string") {
-           console.log('%s: Received %s - terminating sample app ...',
-                       Date(Date.now()), sig);
-           process.exit(1);
-        }
-        console.log('%s: Node server stopped.', Date(Date.now()) );
-    };
+app.configure('development', function(){
+  app.use(express.errorHandler({ dumpExceptions: true, showStack: true }));
+  mongo = {
+		"hostname":"localhost",
+		"port":27017,
+		"username":"",
+		"password":"",
+		"name":"",
+		"db":"db2"
+	};
+	googleConfig = {
+		clientID: '835707212206-8vj325vmgik8r8h7ccsv1b84ffg9as4l.apps.googleusercontent.com',
+		clientSecret: 'sTzb3rwEWn3bDntM9DTKAG6h',
+		callbackURL: 'http://localhost:3000/auth/google/callback'
+	};
+});
 
+app.configure('production', function(){
+	app.use(express.errorHandler());
+	//var env = JSON.parse(process.env.VCAP_SERVICES);
+	//logger.info(env);
+	//mongo = env['mongodb-1.8'][0]['credentials'];
+	mongo = {
+		"hostname": process.env.OPENSHIFT_MONGODB_DB_HOST,
+		"port": parseInt(process.env.OPENSHIFT_MONGODB_DB_PORT),
+		"username": process.env.OPENSHIFT_MONGODB_DB_USERNAME,
+		"password": process.env.OPENSHIFT_MONGODB_DB_PASSWORD,
+		"name": process.env.OPENSHIFT_APP_NAME,
+		"db": process.env.OPENSHIFT_APP_NAME
+	};
+	//logger.info(mongo1);
+	//mongo = env['mongodb-1.8'][0];
+	googleConfig = {
+		clientID: '835707212206-v5d8aetgc5totep5dlb2mv9nbp32pn2k.apps.googleusercontent.com',
+		clientSecret: 'vGt-LFj8SaVosN8eJQyQutEI',
+		callbackURL: 'http://home-expenses.eu01.aws.af.cm/auth/google/callback'
+	};
+});
 
-    /**
-     *  Setup termination handlers (for exit and a list of signals).
-     */
-    self.setupTerminationHandlers = function(){
-        //  Process on exit and signals.
-        process.on('exit', function() { self.terminator(); });
+// Passport
 
-        // Removed 'SIGPIPE' from the list - bugz 852598.
-        ['SIGHUP', 'SIGINT', 'SIGQUIT', 'SIGILL', 'SIGTRAP', 'SIGABRT',
-         'SIGBUS', 'SIGFPE', 'SIGUSR1', 'SIGSEGV', 'SIGUSR2', 'SIGTERM'
-        ].forEach(function(element, index, array) {
-            process.on(element, function() { self.terminator(element); });
-        });
-    };
+passport.use(new GoogleStrategy( googleConfig,
+  function(accessToken, refreshToken, profile, done) {
+    // asynchronous verification, for effect...
+    process.nextTick(function () {
+      
+      // To keep the example simple, the user's Google profile is returned to
+      // represent the logged-in user.  In a typical application, you would want
+      // to associate the Google account with a user record in your database,
+      // and return that user instead.
+      
+      logger.info('email=' + profile.emails[0].value);
+		User.findOne({ email: profile.emails[0].value }, function(err, user) {
+			if (err) { return done(err); }
+			if (user) {
+				user.name = profile.displayName;
+				//user.role = 'admin';
+				//console.log(profile);
+				return done(null, user);
+			} else {
+				logger.error('User not found %s', user);
+				return done(null, false, { message: 'User not found' });
+			}
+		});
+    });
+  }
+));
 
+// Passport session setup.
+// To support persistent login sessions, Passport needs to be able to
+// serialize users into and deserialize users out of the session. Typically,
+// this will be as simple as storing the user ID when serializing, and finding
+// the user by ID when deserializing. However, since this example does not
+// have a database of user records, the complete Google profile is
+// serialized and deserialized.
+passport.serializeUser(function(user, done) {
+  done(null, user);
+});
 
-    /*  ================================================================  */
-    /*  App server functions (main app logic here).                       */
-    /*  ================================================================  */
+passport.deserializeUser(function(obj, done) {
+  done(null, obj);
+});
 
-    /**
-     *  Create the routing table entries + handlers for the application.
-     */
-    self.createRoutes = function() {
-        self.routes = { };
+// MongoDB
 
-        self.routes['/asciimo'] = function(req, res) {
-            var link = "http://i.imgur.com/kmbjB.png";
-            res.send("<html><body><img src='" + link + "'></body></html>");
-        };
+var generate_mongo_url = function(obj){
+	obj.hostname = (obj.hostname || 'localhost');
+	obj.port = (obj.port || 27017);
+	obj.db = (obj.db || 'test');
+	if(obj.username && obj.password){
+		return "mongodb://" + obj.username + ":" + obj.password + "@" + obj.hostname + ":" + obj.port + "/" + obj.db;
+	}else{
+		return "mongodb://" + obj.hostname + ":" + obj.port + "/" + obj.db;
+	}
+};
 
-        self.routes['/'] = function(req, res) {
-            res.setHeader('Content-Type', 'text/html');
-            res.send(self.cache_get('index.html') );
-        };
-    };
+var mongourl = generate_mongo_url(mongo);
+//var mongourl = mongo['url'];
 
+models.defineModels(mongoose, function() {
+  app.User = User = mongoose.model('User');
+  app.Item = Item = mongoose.model('Item');
+  db = mongoose.connect(mongourl);
+});
 
-    /**
-     *  Initialize the server (express) and create the routes and register
-     *  the handlers.
-     */
-    self.initializeServer = function() {
-        self.createRoutes();
-        self.app = express.createServer();
+// Routes
+//
+//User.collection.drop(function (err) {
+//	if (err) {
+//		console.log('Drop Users ' + err);
+//	}
+//});
+//
+//var usrs = [
+//	{	
+//		email: 'fjcarretero@gmail.com',
+//		familyId: 'carretero',
+//		role: 'admin'
+//	},
+//	{	
+//		email: 'cmmarroyo@gmail.com',
+//		familyId: 'carretero',
+//		role: 'user'
+//	}
+//];
+//var user = null;
+//usrs.forEach(function (usr){
+//	user = new User;
+//	console.log('email ' + usr.email);
+//	console.log('role ' + usr.role);
+//	user.email = usr.email;
+//	user.role = usr.role;
+//	user.familyId = usr.familyId;
+//	user.save(function (error){
+//		if (error) {
+//			console.log('Error creating ' + error);
+//		}
+//	});
+//});
+//Item.collection.drop(function (err) {
+//	if (err) {
+//		console.log('Drop List ' + err);
+//	}
+//});
+//Item.collection.drop(function (err) {
+//	if (err) {
+//		console.log('Drop Item ' + err);
+//	}
+//});
 
-        //  Add handlers for the app (from the routes).
-        for (var r in self.routes) {
-            self.app.get(r, self.routes[r]);
-        }
-    };
+function ensureAuthenticated(req, res, next) {
+	if (req.isAuthenticated()) { 
+		console.log('login2');
+		return next(); 
+	}
+	console.log('not logged');
+	if (req.xhr) {
+		res.send(403, { error: 'Not authorized' });
+	} else {
+		logger.info(req.url);
+		req.session.originalUrl = req.url;
+		res.redirect('/login');
+	}
+}
 
+function andRestrictTo(role) {
+  return function(req, res, next) {
+    req.user.role == role ? next() : next(new Error('Unauthorized'));
+  }
+}
 
-    /**
-     *  Initializes the sample application.
-     */
-    self.initialize = function() {
-        self.setupVariables();
-        self.populateCache();
-        self.setupTerminationHandlers();
+//app.get('/', ensureAuthenticated, routes.index);
+//app.get('/admin', ensureAuthenticated, andRestrictTo('admin'), routes.baseAdmin);
+app.get('/login', routes.login);
+app.get('/index', ensureAuthenticated, routes.base);
+app.get('/auth/google', passport.authenticate('google', {scope: ['https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/userinfo.profile']}));
 
-        // Create the express server and routes.
-        self.initializeServer();
-    };
+app.get('/auth/google/callback', 
+	passport.authenticate('google', { failureRedirect: '/login' }),
+	function(req, res) {
+		res.redirect(req.session.originalUrl ? req.session.originalUrl : '/index');
+	}
+);
 
+app.get('/partials/:name', ensureAuthenticated, routes.partials);
+//app.get('/admin/:name', ensureAuthenticated, andRestrictTo('admin'), routes.adminPages);
 
-    /**
-     *  Start the server (starts up the sample application).
-     */
-    self.start = function() {
-        //  Start the app on the specific interface (and port).
-        self.app.listen(self.port, self.ipaddress, function() {
-            console.log('%s: Node server started on %s:%d ...',
-                        Date(Date.now() ), self.ipaddress, self.port);
-        });
-    };
+// JSON API
 
-};   /*  Sample Application.  */
+app.get('/api/categories', ensureAuthenticated, api.getCategories);
 
+app.get('/api/items', ensureAuthenticated, api.getItems);
+app.get('/api/itemsByCategory', ensureAuthenticated, api.getItemsByCategory);
+app.post('/api/item', ensureAuthenticated, api.addItem);
+app.put('/api/item/:id', ensureAuthenticated, api.editItem);
+app['delete']('/api/item/:id', ensureAuthenticated, api.deleteItem);
 
+// redirect all others to the index (HTML5 history)
+app.get('*', routes.login);
 
-/**
- *  main():  Main code.
- */
-var zapp = new SampleApp();
-zapp.initialize();
-zapp.start();
+// Start server
 
+app.listen(process.env.OPENSHIFT_NODEJS_PORT || 3000, process.env.OPENSHIFT_NODEJS_IP || "127.0.0.1", function(){
+  logger.info("Express server listening on port %d in %s mode", this.address().port, app.settings.env);
+});

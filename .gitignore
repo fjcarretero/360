@@ -1,0 +1,4 @@
+/test*
+/*.log
+/.openshift/
+/node_modules/
