@@ -60,8 +60,8 @@ app.configure('development', function(){
 		"db":"db2"
 	};
 	googleConfig = {
-		clientID: '835707212206-8vj325vmgik8r8h7ccsv1b84ffg9as4l.apps.googleusercontent.com',
-		clientSecret: 'sTzb3rwEWn3bDntM9DTKAG6h',
+		clientID: '835707212206-rmpa7p64utlusu6qcqju92nk8gn8f52q.apps.googleusercontent.com',
+		clientSecret: 'H3cHXWkvUlszFsftUtg0SQIF',
 		callbackURL: 'http://localhost:3000/auth/google/callback'
 	};
 });
