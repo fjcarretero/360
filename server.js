@@ -191,24 +191,17 @@ var txs = [{
     ]
 }];
 
-//Transaction.collection.drop(function (err) {
-//    if (err) { console.log('Drop ' + err); }
-//});
-//
-//var tran;
-//txs.forEach(function (tx){
-//    tran = new Transaction();
-////    _.extend(tran, tx);
-////    logger.info(tran);
-////	tran.save(function (error){
-////		if (error) {
-////			console.log('Error creating ' + error);
-////		}
-////	});
-//    Transaction.collection.insert(tx, function (err) {
-//        if (err) { console.log('Insert ' + err); }
-//    });
-//});
+Transaction.collection.drop(function (err) {
+    if (err) { console.log('Drop ' + err); }
+});
+
+var tran;
+txs.forEach(function (tx){
+    tran = new Transaction();
+    Transaction.collection.insert(tx, function (err) {
+        if (err) { console.log('Insert ' + err); }
+    });
+});
 _
 
 
