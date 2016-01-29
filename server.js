@@ -3,13 +3,11 @@
  * Module dependencies.
  */
 
-var express = require('express'),
+var _ = require('underscore'),
+  express = require('express'),
   routes = require('./routes'),
-  api = require('./routes/api'),
   mongoose = require('mongoose'),
   models = require('./models'),
-  passport = require('passport'),
-  GoogleStrategy = require('passport-google-oauth').OAuth2Strategy,
   logger = require('./winston');
 
 var app = module.exports = express();
@@ -39,15 +37,12 @@ app.configure( function(){
   app.use(express.methodOverride());
   app.use(express.static(__dirname + '/public'));
   app.use(express.session({ secret: 'keyboard cat' }));
-  app.use(passport.initialize());
-  app.use(passport.session());
   app.use(clientErrorHandler);
   app.use(errorHandler);
   app.use(app.router);
 });
 
-var mongo,
-	googleConfig;
+var mongo;
 
 app.configure('development', function(){
   app.use(express.errorHandler({ dumpExceptions: true, showStack: true }));
@@ -57,12 +52,7 @@ app.configure('development', function(){
 		"username":"",
 		"password":"",
 		"name":"",
-		"db":"db2"
-	};
-	googleConfig = {
-		clientID: '835707212206-rmpa7p64utlusu6qcqju92nk8gn8f52q.apps.googleusercontent.com',
-		clientSecret: 'H3cHXWkvUlszFsftUtg0SQIF',
-		callbackURL: 'http://localhost:3000/auth/google/callback'
+		"db":"db360"
 	};
 });
 
@@ -79,58 +69,8 @@ app.configure('production', function(){
 		"name": process.env.OPENSHIFT_APP_NAME,
 		"db": process.env.OPENSHIFT_APP_NAME
 	};
-	//logger.info(mongo1);
-	//mongo = env['mongodb-1.8'][0];
-	googleConfig = {
-		clientID: '835707212206-v5d8aetgc5totep5dlb2mv9nbp32pn2k.apps.googleusercontent.com',
-		clientSecret: 'vGt-LFj8SaVosN8eJQyQutEI',
-		callbackURL: 'http://home-expenses.eu01.aws.af.cm/auth/google/callback'
-	};
 });
 
-// Passport
-
-passport.use(new GoogleStrategy( googleConfig,
-  function(accessToken, refreshToken, profile, done) {
-    // asynchronous verification, for effect...
-    process.nextTick(function () {
-      
-      // To keep the example simple, the user's Google profile is returned to
-      // represent the logged-in user.  In a typical application, you would want
-      // to associate the Google account with a user record in your database,
-      // and return that user instead.
-      
-      logger.info('email=' + profile.emails[0].value);
-		User.findOne({ email: profile.emails[0].value }, function(err, user) {
-			if (err) { return done(err); }
-			if (user) {
-				user.name = profile.displayName;
-				//user.role = 'admin';
-				//console.log(profile);
-				return done(null, user);
-			} else {
-				logger.error('User not found %s', user);
-				return done(null, false, { message: 'User not found' });
-			}
-		});
-    });
-  }
-));
-
-// Passport session setup.
-// To support persistent login sessions, Passport needs to be able to
-// serialize users into and deserialize users out of the session. Typically,
-// this will be as simple as storing the user ID when serializing, and finding
-// the user by ID when deserializing. However, since this example does not
-// have a database of user records, the complete Google profile is
-// serialized and deserialized.
-passport.serializeUser(function(user, done) {
-  done(null, user);
-});
-
-passport.deserializeUser(function(obj, done) {
-  done(null, obj);
-});
 
 // MongoDB
 
@@ -149,105 +89,134 @@ var mongourl = generate_mongo_url(mongo);
 //var mongourl = mongo['url'];
 
 models.defineModels(mongoose, function() {
-  app.User = User = mongoose.model('User');
-  app.Item = Item = mongoose.model('Item');
+  app.Transaction = Transaction = mongoose.model('Transaction');
   db = mongoose.connect(mongourl);
 });
 
-// Routes
-//
-//User.collection.drop(function (err) {
-//	if (err) {
-//		console.log('Drop Users ' + err);
-//	}
+var txs = [{
+    "productId" : "228",
+    "productName" : "motor chulo",
+    "LoB" : 14,
+    "policyId" : "234353",
+    "agent" : {
+        "agentId" : "909090",
+        "node" : "AB100"
+    },
+    "transactionNumber" : 1,
+    "creationDate" : new Date("2015-06-24T15:02:00.000Z"),
+    "inceptionDate" : new Date("2015-07-24T00:00:00.000Z"),
+    "endDate" : new Date("2016-07-24T00:00:00.000Z"),
+    "operation" : "NB",
+    "premium" : 893.4299999999999500,
+    "currency" : "EUR",
+    "policyHolder" : "1259",
+    "objectOfRisk" : {
+        "make" : "volkswagen",
+        "model" : "passat",
+        "plate" : "M-2803-WW",
+        "engine" : "BIG 1.2",
+        "melts_quickly" : true
+    },
+    "covers" : [ 
+        {
+            "name" : "fire",
+            "id" : 82,
+            "limit" : 30000.0000000000000000,
+            "excess" : 0.0000000000000000
+        }, 
+        {
+            "name" : "3rd party",
+            "id" : 24,
+            "limit" : 9000000.0000000000000000,
+            "excess" : 0.0000000000000000,
+            "clauses" : [ 
+                {
+                    "text" : "not covered if drunk"
+                }
+            ]
+        }
+    ]
+},
+{
+    "productId" : "423",
+    "productName" : "hogar gar",
+    "policyId" : "099903949532434",
+    "agentId" : "080808",
+    "transactionNumber" : 1,
+    "LoB" : 22,
+    "creationDate" : new Date("2014-11-23T15:12:00.000Z"),
+    "inceptionDate" : new Date("2014-12-10T00:00:00.000Z"),
+    "endDate" : new Date("2015-12-10T00:00:00.000Z"),
+    "operation" : "NB",
+    "premium" : 910.0000000000000000,
+    "currency" : "EUR",
+    "policyHolder" : "1259",
+    "objectOfRisk" : {
+        "address" : "Calle MiCalle numero 23, 3ºB Madrid",
+       "type_of_Construction" : "wood",
+        "year_of_construction" : 1999,
+        "constructionValue" : {
+            "amount" : 200000.0000000000000000,
+            "currency" : "EUR"
+        },
+        "contentValue" : {
+            "amount" : 90000.0000000000000000,
+            "currency" : "EUR"
+        }
+    },
+    "covers" : [ 
+        {
+            "name" : "fire",
+            "id" : 82,
+            "limit" : 30000.0000000000000000,
+            "excess" : 0.0000000000000000
+        }, 
+        {
+            "name" : "theft",
+            "id" : 94,
+            "limit" : 1000.0000000000000000,
+            "excess" : 0.0000000000000000
+        }, 
+        {
+            "name" : "public liability",
+            "id" : 24,
+           "limit" : 90000000.0000000000000000,
+            "excess" : 0.0000000000000000,
+            "clauses" : [ 
+                {
+                    "text" : "only applicable for water and  fire accidental damages"
+                }
+            ]
+        }
+    ]
+}];
+
+//Transaction.collection.drop(function (err) {
+//    if (err) { console.log('Drop ' + err); }
 //});
 //
-//var usrs = [
-//	{	
-//		email: 'fjcarretero@gmail.com',
-//		familyId: 'carretero',
-//		role: 'admin'
-//	},
-//	{	
-//		email: 'cmmarroyo@gmail.com',
-//		familyId: 'carretero',
-//		role: 'user'
-//	}
-//];
-//var user = null;
-//usrs.forEach(function (usr){
-//	user = new User;
-//	console.log('email ' + usr.email);
-//	console.log('role ' + usr.role);
-//	user.email = usr.email;
-//	user.role = usr.role;
-//	user.familyId = usr.familyId;
-//	user.save(function (error){
-//		if (error) {
-//			console.log('Error creating ' + error);
-//		}
-//	});
+//var tran;
+//txs.forEach(function (tx){
+//    tran = new Transaction();
+////    _.extend(tran, tx);
+////    logger.info(tran);
+////	tran.save(function (error){
+////		if (error) {
+////			console.log('Error creating ' + error);
+////		}
+////	});
+//    Transaction.collection.insert(tx, function (err) {
+//        if (err) { console.log('Insert ' + err); }
+//    });
 //});
-//Item.collection.drop(function (err) {
-//	if (err) {
-//		console.log('Drop List ' + err);
-//	}
-//});
-//Item.collection.drop(function (err) {
-//	if (err) {
-//		console.log('Drop Item ' + err);
-//	}
-//});
+_
 
-function ensureAuthenticated(req, res, next) {
-	if (req.isAuthenticated()) { 
-		console.log('login2');
-		return next(); 
-	}
-	console.log('not logged');
-	if (req.xhr) {
-		res.send(403, { error: 'Not authorized' });
-	} else {
-		logger.info(req.url);
-		req.session.originalUrl = req.url;
-		res.redirect('/login');
-	}
-}
 
-function andRestrictTo(role) {
-  return function(req, res, next) {
-    req.user.role == role ? next() : next(new Error('Unauthorized'));
-  }
-}
 
-//app.get('/', ensureAuthenticated, routes.index);
-//app.get('/admin', ensureAuthenticated, andRestrictTo('admin'), routes.baseAdmin);
-app.get('/login', routes.login);
-app.get('/index', ensureAuthenticated, routes.base);
-app.get('/auth/google', passport.authenticate('google', {scope: ['https://www.googleapis.com/auth/userinfo.email', 'https://www.googleapis.com/auth/userinfo.profile']}));
 
-app.get('/auth/google/callback', 
-	passport.authenticate('google', { failureRedirect: '/login' }),
-	function(req, res) {
-		res.redirect(req.session.originalUrl ? req.session.originalUrl : '/index');
-	}
-);
 
-app.get('/partials/:name', ensureAuthenticated, routes.partials);
-//app.get('/admin/:name', ensureAuthenticated, andRestrictTo('admin'), routes.adminPages);
-
-// JSON API
-
-app.get('/api/categories', ensureAuthenticated, api.getCategories);
-
-app.get('/api/items', ensureAuthenticated, api.getItems);
-app.get('/api/itemsByCategory', ensureAuthenticated, api.getItemsByCategory);
-app.post('/api/item', ensureAuthenticated, api.addItem);
-app.put('/api/item/:id', ensureAuthenticated, api.editItem);
-app['delete']('/api/item/:id', ensureAuthenticated, api.deleteItem);
-
-// redirect all others to the index (HTML5 history)
-app.get('*', routes.login);
+app.get('/api/contracts', routes.getContracts);
+app.get('/api/contracts/:contractId', routes.getSingleContract);
 
 // Start server
 

@@ -5,10 +5,10 @@
 
 angular.module('HomeExpensesApp', ['HomeExpensesApp.controllers', 'HomeExpensesApp.directives', 'HomeExpensesApp.filters', 'ngRoute', 'ui.bootstrap', 'ngCsv']).
   config(['$routeProvider', function($routeProvider) {
-	$routeProvider.when('/', {templateUrl: 'partials/addItem', controller: 'AddItemCtrl'});
+	$routeProvider.when('/addItem', {templateUrl: 'partials/addItem', controller: 'AddItemCtrl'});
 	$routeProvider.when('/listItems', {templateUrl: 'partials/listItems', controller: 'ListItemsCtrl'});
 	$routeProvider.when('/adminItems', {templateUrl: 'partials/adminItems', controller: 'AdminItemsCtrl'});
-    $routeProvider.otherwise({redirectTo: '/'});
+    $routeProvider.otherwise({redirectTo: '/addItem'});
   }]).
   config(['$httpProvider', '$compileProvider', function ($httpProvider, $compileProvider) {
 //	$httpProvider.defaults.headers.common['Content-type'] = 'application/json;charset=UTF-8';
@@ -59,6 +59,6 @@ angular.module('HomeExpensesApp', ['HomeExpensesApp.controllers', 'HomeExpensesA
         });
   }]).
   config(['$locationProvider', function ($locationProvider) {
-	$locationProvider.html5Mode(false).hashPrefix('!');
+	$locationProvider.html5Mode(true);
   }]);
   
