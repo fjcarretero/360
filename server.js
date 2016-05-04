@@ -141,7 +141,10 @@ var txs = [{
     "productId" : "423",
     "productName" : "hogar gar",
     "policyId" : "099903949532434",
-    "agentId" : "080808",
+    "agent" : {
+        "agentId" : "080808",
+        "node" : "AB100"
+    },
     "transactionNumber" : 1,
     "LoB" : 22,
     "creationDate" : new Date("2014-11-23T15:12:00.000Z"),
@@ -202,11 +205,6 @@ txs.forEach(function (tx){
         if (err) { console.log('Insert ' + err); }
     });
 });
-_
-
-
-
-
 
 app.get('/api/contracts', routes.getContracts);
 app.get('/api/contracts/:contractId', routes.getSingleContract);

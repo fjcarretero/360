@@ -10,12 +10,9 @@ function defineModels(mongoose, fn) {
   Transaction = new Schema({
 		policyId: String,
 		productId: String,
-		policyHolder:{
-			partyId: String
-		},
+		policyHolder: String,
 		agent:{
-			agentId: String,
-			node: String
+			agentId: String
 		}
   });
      

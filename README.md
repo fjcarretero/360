@@ -1,3 +1,3 @@
-# 360
+# 360º
 
-A 360 set of services over MongoDB
+A 360º set of services over MongoDB
